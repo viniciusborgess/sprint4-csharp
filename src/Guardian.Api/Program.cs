@@ -7,43 +7,37 @@ using Microsoft.EntityFrameworkCore;
 var builder = WebApplication.CreateBuilder(args);
 var cfg = builder.Configuration;
 
-// EF Core: SQLite local (trocar por PostgreSQL em cloud)
-builder.Services.AddDbContext<Guardian.Api.Data.GuardianDbContext>(opt =>
+// EF Core: SQLite (trocar por Postgres em cloud, se quiser)
+builder.Services.AddDbContext<GuardianDbContext>(opt =>
     opt.UseSqlite(cfg.GetConnectionString("sqlite") ?? "Data Source=guardian.db"));
 
-// AutoMapper
 builder.Services.AddAutoMapper(typeof(MappingProfile));
-
-// Serviços
 builder.Services.AddScoped<InvestmentSimulator>();
 builder.Services.AddScoped<AdvisorService>();
-
-// HttpClient resiliente
 builder.Services.AddHttpClient<ExternalRatesClient>()
     .SetHandlerLifetime(TimeSpan.FromMinutes(5));
 
 builder.Services.AddControllers();
-
-// Swagger
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
-
-// Health checks
 builder.Services.AddHealthChecks();
 
 var app = builder.Build();
 
+// aplica migrações/seed
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<GuardianDbContext>();
     await db.EnsureSeededAsync();
 }
 
-if (app.Environment.IsDevelopment())
+// 🔓 Swagger também em produção
+app.UseSwagger();
+app.UseSwaggerUI(c =>
 {
-    app.UseSwagger();
-    app.UseSwaggerUI();
-}
+    c.SwaggerEndpoint("/swagger/v1/swagger.json", "Guardian.Api v1");
+    c.RoutePrefix = "swagger"; // URL será /swagger
+});
 
 app.MapHealthChecks("/health");
 app.MapControllers();
